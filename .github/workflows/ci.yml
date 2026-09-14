@@ -1,0 +1,55 @@
+name: CI
+
+# Quality gate for every pull request into develop or main. Needs no AWS
+# access: `cdk synth` runs offline because every stack pins its account and
+# region, and the dev preview password is a random throwaway when not deploying.
+
+on:
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, typecheck, test, build, synth
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Reads the pnpm version from package.json "packageManager".
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+      - name: Synthesize dev and prod
+        run: pnpm synth
+
+      # The deploy job runs `pnpm exec cdk deploy` from infra, which puts less
+      # on PATH than `pnpm synth` does. Synthesize that way too, so a tool the
+      # Lambda bundler can't find fails here rather than mid-deploy.
+      - name: Synthesize as the deploy job does
+        working-directory: infra
+        run: pnpm exec cdk synth --quiet -c env=prod -o cdk.out/deploy-check
+
+      # Invokes the Lambda bundle CDK produced. Catches the one failure synth
+      # can't: a bundle that boots but silently skips request validation.
+      - name: Smoke-test the Lambda bundle
+        run: pnpm smoke:lambda

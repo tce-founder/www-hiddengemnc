@@ -1,0 +1,21 @@
+{
+  "name": "web",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/web/src",
+  "tags": ["scope:web"],
+  "targets": {
+    "build": {
+      "outputs": ["{projectRoot}/dist", "{projectRoot}/dist-ssr"],
+      "inputs": [
+        "production",
+        "^production",
+        { "env": "VITE_SITE_URL" },
+        { "env": "VITE_SITE_ENV" },
+        { "env": "VITE_API_BASE_URL" },
+        { "env": "VITE_RECAPTCHA_SITE_KEY" },
+        { "env": "VITE_GA_MEASUREMENT_ID" }
+      ]
+    }
+  }
+}

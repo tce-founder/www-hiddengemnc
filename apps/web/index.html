@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Per-page title, description, canonical and social tags come from <Seo>
+      (src/components/Seo.tsx). Tags marked data-seo are fallbacks: the
+      prerender step swaps them for each page's tags, and the browser removes
+      them on load so React's live tags are the only ones.
+    -->
+    <title data-seo>Hidden Gem NC</title>
+    <meta data-seo name="description" content="Hidden Gem NC" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- use-credentials: the password-protected dev site otherwise 401s the manifest. -->
+    <link rel="manifest" href="/site.webmanifest" crossorigin="use-credentials" />
+    <meta name="theme-color" content="#14213d" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

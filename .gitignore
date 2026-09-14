@@ -1,0 +1,74 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage
+*.lcov
+.nyc_output
+
+# Dependency directories
+node_modules/
+.pnpm-store
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Caches
+.npm
+.eslintcache
+.stylelintcache
+.cache
+.parcel-cache
+.temp
+
+# dotenv environment variable files (templates stay committed)
+.env
+.env.*
+!.env.example
+
+# Build output
+dist
+dist-ssr
+build/Release
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+.vite/
+
+# AWS CDK
+cdk.out/
+.cdk.staging/
+cdk-outputs*.json
+
+# Nx
+.nx/cache
+.nx/workspace-data
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*~
+
+# Claude Code (per-user state; .claude/launch.json is shared and committed)
+.claude/settings.local.json
+.claude/worktrees/

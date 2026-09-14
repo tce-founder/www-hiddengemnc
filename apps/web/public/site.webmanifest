@@ -1,0 +1,15 @@
+{
+  "name": "Hidden Gem NC",
+  "short_name": "Hidden Gem NC",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#14213d",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

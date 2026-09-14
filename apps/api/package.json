@@ -1,0 +1,54 @@
+{
+  "name": "@hiddengem/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Contact-form API for hiddengemnc.com — NestJS, deployed to AWS Lambda behind CloudFront.",
+  "scripts": {
+    "build": "nest build",
+    "dev": "nest start --watch",
+    "start": "node dist/main.js",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1129.0",
+    "@aws-sdk/client-sesv2": "^3.1129.0",
+    "@aws-sdk/lib-dynamodb": "^3.1129.0",
+    "@codegenie/serverless-express": "^5.0.0",
+    "@nestjs/common": "^11.2.3",
+    "@nestjs/core": "^11.2.3",
+    "@nestjs/platform-express": "^11.2.3",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.4",
+    "express": "^5.2.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.24",
+    "@nestjs/testing": "^11.2.3",
+    "@hiddengem/shared": "workspace:*",
+    "@types/aws-lambda": "^8.10.163",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "jest": "^30.5.1",
+    "ts-jest": "^29.4.12",
+    "typescript": "catalog:"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.ts$": [
+        "ts-jest",
+        {
+          "tsconfig": "<rootDir>/../tsconfig.json"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "infra",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "infra/lib",
+  "tags": ["scope:infra"],
+  "implicitDependencies": ["api"],
+  "targets": {
+    "synth": {
+      "dependsOn": ["^build"],
+      "cache": false
+    }
+  }
+}
