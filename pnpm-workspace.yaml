@@ -1,0 +1,31 @@
+packages:
+  - apps/*
+  - libs/*
+  - infra
+
+# One version of each shared tool across every package. Reference with
+# `"typescript": "catalog:"` in a package.json instead of repeating a range.
+catalog:
+  '@eslint/js': ^10.0.1
+  '@types/node': ^24.13.4
+  esbuild: ^0.28.2
+  eslint: ^10.10.0
+  globals: ^17.12.0
+  # Pinned to 5.9: 7.x is the native compiler (typescript-eslint supports <6.1)
+  # and 6.x changes defaults. Revisit when the ecosystem catches up.
+  typescript: 5.9.3
+  typescript-eslint: ^8.70.0
+  vitest: ^5.0.0
+
+# pnpm 10 skips dependency install scripts unless they are allowlisted here.
+onlyBuiltDependencies:
+  - '@nestjs/core'
+  - '@swc/core'
+  - '@tailwindcss/oxide'
+  - esbuild
+  - nx
+
+# These ship prebuilt binaries; their install scripts are only a fallback.
+ignoredBuiltDependencies:
+  - '@parcel/watcher'
+  - unrs-resolver

@@ -1,0 +1,42 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      aws:
+        patterns: ['@aws-sdk/*', 'aws-cdk', 'aws-cdk-lib', 'constructs']
+      nest:
+        patterns: ['@nestjs/*']
+      react:
+        patterns: ['react', 'react-dom', 'react-router', '@types/react', '@types/react-dom']
+      tooling:
+        patterns:
+          - 'eslint*'
+          - '@eslint/*'
+          - 'typescript-eslint'
+          - 'prettier'
+          - 'vitest'
+          - 'jest'
+          - 'ts-jest'
+          - '@types/jest'
+          - 'nx'
+    ignore:
+      # Pinned to 5.x on purpose — see pnpm-workspace.yaml.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+      # Nest 12 is ESM-only; that upgrade needs a planned migration.
+      - dependency-name: '@nestjs/*'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

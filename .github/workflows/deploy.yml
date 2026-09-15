@@ -1,0 +1,204 @@
+name: Deploy
+
+# Branch → environment (both in AWS account 074127281063, profile ben-tce-root):
+#   develop → dev   https://www.d.hiddengemnc.com (password-protected)
+#   main    → prod  https://hiddengemnc.com (www redirects to it)
+#
+# AWS access is GitHub OIDC only — no stored keys. Jobs that touch AWS run in
+# the GitHub Environment named after the target, and each deploy role trusts
+# only its Environment. The `prod` Environment accepts deployments from `main`
+# only; that rule, plus branch protection on `main`, is the gate.
+#
+# First-time setup (deploy roles, GitHub Environments): docs/DEPLOYMENT.md.
+
+on:
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy
+        type: choice
+        options: [dev, prod]
+        required: true
+
+permissions:
+  contents: read
+
+# One deploy per environment at a time; never cancel one mid-flight.
+concurrency:
+  group: deploy-${{ inputs.environment || (github.ref_name == 'main' && 'prod' || 'dev') }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      site_url: ${{ steps.env.outputs.site_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: infra/cdk.json
+          sparse-checkout-cone-mode: false
+      - id: env
+        env:
+          REQUESTED: ${{ inputs.environment }}
+        run: |
+          if [ -n "$REQUESTED" ]; then env="$REQUESTED"
+          elif [ "$GITHUB_REF_NAME" = "main" ]; then env=prod
+          else env=dev
+          fi
+          domain=$(jq -r ".context.hiddengem.environments.$env.site.domain" infra/cdk.json)
+          echo "environment=$env" >> "$GITHUB_OUTPUT"
+          echo "site_url=https://$domain" >> "$GITHUB_OUTPUT"
+          echo "Deploying **$env** from \`$GITHUB_REF_NAME\`" >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: Build and test
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Environment-scoped variables (the reCAPTCHA site key) are only visible
+    # to jobs that declare the environment.
+    environment: ${{ needs.resolve.outputs.environment }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      # Tests run without this environment's VITE_* values, exactly as in CI.
+      - run: pnpm test
+      - run: pnpm build
+        env:
+          VITE_SITE_ENV: ${{ needs.resolve.outputs.environment }}
+          # Canonical URL for canonical links, Open Graph and the sitemap.
+          VITE_SITE_URL: ${{ needs.resolve.outputs.site_url }}
+          # Public by design — Vite inlines it into the bundle.
+          VITE_RECAPTCHA_SITE_KEY: ${{ vars.RECAPTCHA_SITE_KEY }}
+          # GA4 measurement ID (public), one property per environment. Unset means no analytics.
+          VITE_GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: web-dist
+          path: apps/web/dist
+          retention-days: 7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: api-dist
+          path: apps/api/dist
+          retention-days: 7
+
+  deploy:
+    name: Deploy
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment:
+      name: ${{ needs.resolve.outputs.environment }}
+      url: ${{ steps.smoke.outputs.site_url }}
+    permissions:
+      contents: read
+      id-token: write # OIDC token for aws-actions/configure-aws-credentials
+    env:
+      DEPLOY_ENV: ${{ needs.resolve.outputs.environment }}
+      BASIC_AUTH_USERNAME: ${{ vars.BASIC_AUTH_USERNAME || 'hiddengem' }}
+      BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      # The CDK CLI and esbuild (to bundle the Lambda) come from the workspace.
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: api-dist
+          path: apps/api/dist
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: web-dist
+          path: apps/web/dist
+
+      - name: Preflight
+        env:
+          AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          RECAPTCHA_SECRET_KEY: ${{ secrets.RECAPTCHA_SECRET_KEY }}
+          RECAPTCHA_SITE_KEY: ${{ vars.RECAPTCHA_SITE_KEY }}
+        run: |
+          config() { jq -r ".context.hiddengem.environments.$DEPLOY_ENV.$1" infra/cdk.json; }
+          failed=0
+          error() { echo "::error::$1"; failed=1; }
+
+          [ -n "$AWS_DEPLOY_ROLE_ARN" ] ||
+            error "Set the AWS_DEPLOY_ROLE_ARN variable on the '$DEPLOY_ENV' GitHub Environment (docs/DEPLOYMENT.md)."
+          if [ "$(config basicAuth)" = "true" ] && [ -z "$BASIC_AUTH_PASSWORD" ]; then
+            error "Set the BASIC_AUTH_PASSWORD secret on the '$DEPLOY_ENV' GitHub Environment."
+          fi
+          if [ -z "$RECAPTCHA_SECRET_KEY" ] || [ -z "$RECAPTCHA_SITE_KEY" ]; then
+            echo "::warning::reCAPTCHA keys are not configured for '$DEPLOY_ENV' — the contact form will reject submissions until they are."
+          fi
+          exit $failed
+
+      - uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: github-${{ github.run_id }}
+          aws-region: us-east-1
+
+      - name: Deploy infrastructure (CDK)
+        working-directory: infra
+        env:
+          RECAPTCHA_SECRET_KEY: ${{ secrets.RECAPTCHA_SECRET_KEY }}
+        run: >
+          pnpm exec cdk deploy --all
+          --require-approval never
+          --context env="$DEPLOY_ENV"
+          --context deploy=true
+          --outputs-file cdk-outputs.json
+
+      - name: Publish site content
+        run: |
+          param() { aws ssm get-parameter --name "/hiddengem/$DEPLOY_ENV/$1" --query Parameter.Value --output text; }
+          bucket=$(param site-bucket)
+          distribution=$(param distribution-id)
+
+          # Fingerprinted build assets never change: cache for a year. Old
+          # assets are kept so a tab still running the previous build can load them.
+          aws s3 sync apps/web/dist/assets "s3://$bucket/assets" \
+            --cache-control "public, max-age=31536000, immutable"
+
+          # HTML and other files: browsers revalidate on every visit; CloudFront
+          # caches for a day or until the invalidation below.
+          aws s3 sync apps/web/dist "s3://$bucket" --delete --exclude "assets/*" \
+            --cache-control "public, max-age=0, s-maxage=86400, must-revalidate"
+          aws s3 cp apps/web/dist/site.webmanifest "s3://$bucket/site.webmanifest" \
+            --content-type application/manifest+json \
+            --cache-control "public, max-age=0, s-maxage=86400, must-revalidate"
+
+          aws cloudfront create-invalidation --distribution-id "$distribution" --paths '/*' \
+            --query Invalidation.Id --output text
+
+      - name: Smoke test
+        id: smoke
+        run: |
+          url=$(jq -r 'to_entries[] | select(.key | endswith("-Frontend")) | .value.SiteUrl' infra/cdk-outputs.json)
+          echo "site_url=$url" >> "$GITHUB_OUTPUT"
+
+          auth=()
+          if [ "$(jq -r ".context.hiddengem.environments.$DEPLOY_ENV.basicAuth" infra/cdk.json)" = "true" ]; then
+            auth=(--user "$BASIC_AUTH_USERNAME:$BASIC_AUTH_PASSWORD")
+          fi
+          # Retries cover DNS for a brand-new hostname on the first deploy.
+          curl -fsS --retry 6 --retry-delay 10 --retry-all-errors "${auth[@]}" -o /dev/null "$url/"
+          curl -fsS --retry 6 --retry-delay 10 --retry-all-errors "${auth[@]}" "$url/api/health"
+          echo "Live at $url" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,35 @@
+{
+  "name": "hiddengem-www",
+  "version": "0.0.0",
+  "private": true,
+  "description": "hiddengemnc.com — public website (apps/web), contact API (apps/api) and AWS infrastructure (infra).",
+  "packageManager": "pnpm@10.13.1",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "postinstall": "pnpm --filter @hiddengem/shared build",
+    "dev": "nx run-many -t dev -p web api",
+    "dev:web": "nx run web:dev",
+    "dev:api": "nx run api:dev",
+    "build": "nx run-many -t build",
+    "lint": "nx run-many -t lint",
+    "typecheck": "nx run-many -t typecheck",
+    "test": "nx run-many -t test",
+    "synth": "nx run infra:synth",
+    "smoke:lambda": "node infra/scripts/smoke-lambda-bundle.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "esbuild": "catalog:",
+    "eslint": "catalog:",
+    "globals": "catalog:",
+    "nx": "23.2.1",
+    "prettier": "3.9.6",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
+  }
+}

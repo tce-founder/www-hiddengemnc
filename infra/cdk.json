@@ -1,0 +1,74 @@
+{
+  "app": "node --import tsx bin/app.ts",
+  "watch": {
+    "include": ["bin/**", "lib/**"],
+    "exclude": ["README.md", "cdk*.json", "**/*.d.ts", "node_modules", "test"]
+  },
+  "context": {
+    "hiddengem": {
+      "//": "Dev and prod share one AWS account (ben-tce-root, the organization's management account). The hiddengemnc.com zone already exists there; CDK adds its own records to it and never replaces it.",
+      "github": {
+        "owner": "tce-founder",
+        "ownerId": "290369619",
+        "repo": "www-hiddengemnc",
+        "repoId": "1370545461"
+      },
+      "apexDomain": "hiddengemnc.com",
+      "apexZoneId": "Z0817356V8RW3DE0JHLW",
+      "environments": {
+        "dev": {
+          "account": "074127281063",
+          "region": "us-east-1",
+          "profile": "ben-tce-root",
+          "hostedZone": "d.hiddengemnc.com",
+          "emailDomain": "d.hiddengemnc.com",
+          "contactAdminEmails": ["benelliott@thecoraledge.com"],
+          "sendConfirmationEmail": false,
+          "basicAuth": true,
+          "waf": false,
+          "site": {
+            "domain": "www.d.hiddengemnc.com",
+            "aliases": ["www.d.hiddengemnc.com"],
+            "dnsZone": "environment"
+          }
+        },
+        "prod": {
+          "account": "074127281063",
+          "region": "us-east-1",
+          "profile": "ben-tce-root",
+          "hostedZone": "mail.hiddengemnc.com",
+          "emailDomain": "mail.hiddengemnc.com",
+          "contactAdminEmails": ["benelliott@thecoraledge.com"],
+          "sendConfirmationEmail": true,
+          "basicAuth": false,
+          "waf": false,
+          "site": {
+            "domain": "hiddengemnc.com",
+            "aliases": ["hiddengemnc.com", "www.hiddengemnc.com"],
+            "dnsZone": "apex"
+          }
+        }
+      }
+    },
+    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/core:target-partitions": ["aws"],
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/core:validateSnapshotRemovalPolicy": true,
+    "@aws-cdk/aws-s3:createDefaultLoggingPolicy": true,
+    "@aws-cdk/aws-apigateway:disableCloudWatchRole": true,
+    "@aws-cdk/core:enablePartitionLiterals": true,
+    "@aws-cdk/aws-iam:standardizedServicePrincipals": true,
+    "@aws-cdk/aws-iam:importedRoleStackSafeDefaultPolicyName": true,
+    "@aws-cdk/aws-s3:serverAccessLogsUseBucketPolicy": true,
+    "@aws-cdk/aws-route53-patters:useCertificate": true,
+    "@aws-cdk/customresources:installLatestAwsSdkDefault": false,
+    "@aws-cdk/aws-apigateway:authorizerChangeDeploymentLogicalId": true,
+    "@aws-cdk/aws-apigateway:requestValidatorUniqueId": true,
+    "@aws-cdk/core:includePrefixInUniqueNameGeneration": true,
+    "@aws-cdk/aws-lambda-nodejs:useLatestRuntimeVersion": true,
+    "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021": true,
+    "@aws-cdk/aws-s3:keepNotificationInImportedBucket": false,
+    "@aws-cdk/core:defaultCrossStackReferences": "strong"
+  }
+}

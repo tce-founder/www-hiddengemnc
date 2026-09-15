@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "rootDir": "src",
+    "outDir": "dist",
+    "sourceMap": true,
+    "types": ["node", "jest"],
+    "experimentalDecorators": true,
+    // Nest's dependency injection and ValidationPipe both read the
+    // `design:paramtypes` metadata tsc emits here. esbuild cannot emit it,
+    // which is why the Lambda bundle is built from tsc's output
+    // (dist/lambda.js) rather than from src — see infra/lib/backend-stack.ts.
+    "emitDecoratorMetadata": true,
+    "strictPropertyInitialization": false
+  },
+  "include": ["src/**/*.ts"]
+}

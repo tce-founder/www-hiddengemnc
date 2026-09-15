@@ -1,0 +1,6 @@
+pnpm-lock.yaml
+**/dist
+**/dist-ssr
+**/cdk.out
+**/coverage
+.nx

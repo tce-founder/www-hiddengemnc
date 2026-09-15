@@ -1,0 +1,108 @@
+@import 'tailwindcss';
+
+/*
+ * ─── Design tokens ─────────────────────────────────────────────────────────
+ * The whole look of the site comes from these variables. Change a value here
+ * and every component that uses it follows (buttons, cards, borders, focus
+ * rings…). See docs/DESIGN-GUIDE.md.
+ *
+ * Colours are OKLCH: oklch(lightness chroma hue). Any CSS colour works —
+ * #hex, rgb(), hsl() — if you prefer to paste values from a design tool.
+ * The current palette is a PLACEHOLDER (navy / amber) to be replaced by the
+ * brand palette.
+ *
+ * Contrast: keep *-foreground text readable on its background (WCAG AA =
+ * 4.5:1 for body text). Check pairs at https://webaim.org/resources/contrastchecker/
+ */
+:root {
+  --radius: 0.625rem;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.21 0.03 264);
+
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+
+  /* Brand primary — buttons, links, key accents. */
+  --primary: oklch(0.27 0.06 265);
+  --primary-foreground: oklch(0.98 0 0);
+
+  --secondary: oklch(0.96 0.005 265);
+  --secondary-foreground: var(--foreground);
+
+  --muted: oklch(0.96 0.005 265);
+  --muted-foreground: oklch(0.5 0.02 264);
+
+  /* Highlight colour — use sparingly (eyebrows, icons, badges). */
+  --accent: oklch(0.8 0.16 75);
+  --accent-foreground: oklch(0.21 0.03 264);
+
+  --destructive: oklch(0.58 0.22 27);
+
+  --border: oklch(0.91 0.01 264);
+  --input: oklch(0.91 0.01 264);
+  --ring: oklch(0.55 0.1 265);
+}
+
+/* Fonts. To use a web font, add its <link> in index.html (or self-host it
+   under public/fonts) and put the family first in the stack. */
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: var(--font-sans);
+}
+
+/* Exposes the tokens above as Tailwind utilities: bg-primary, text-muted-foreground, border-border, … */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-display tracking-tight text-balance;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
