@@ -47,12 +47,18 @@ pnpm exec cdk deploy "$SHARED_OIDC_STACK" \
   --profile "$PROFILE" --context env=prod --exclusively \
   --require-approval "$REQUIRE_APPROVAL"
 
-echo "==> Bootstrapping $BOOTSTRAP_STACK (qualifier $BOOTSTRAP_QUALIFIER, execution policy $EXECUTION_POLICY)"
+POLICY_ARNS=""
+IFS=, read -ra POLICIES <<<"$EXECUTION_POLICIES"
+for policy in "${POLICIES[@]}"; do
+  POLICY_ARNS+="${POLICY_ARNS:+,}arn:aws:iam::$ACCOUNT:policy/$policy"
+done
+
+echo "==> Bootstrapping $BOOTSTRAP_STACK (qualifier $BOOTSTRAP_QUALIFIER, execution policies $EXECUTION_POLICIES)"
 pnpm exec cdk bootstrap "aws://$ACCOUNT/$REGION" \
   --profile "$PROFILE" \
   --qualifier "$BOOTSTRAP_QUALIFIER" \
   --toolkit-stack-name "$BOOTSTRAP_STACK" \
-  --cloudformation-execution-policies "arn:aws:iam::$ACCOUNT:policy/$EXECUTION_POLICY" \
+  --cloudformation-execution-policies "$POLICY_ARNS" \
   --require-approval "$REQUIRE_APPROVAL"
 
 DEV_ROLE=$(stack_output "$SHARED_OIDC_STACK" DevDeployRoleArn)

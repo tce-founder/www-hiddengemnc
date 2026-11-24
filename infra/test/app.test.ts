@@ -108,8 +108,17 @@ describe('project CDK bootstrap', () => {
       (p) =>
         (p as { Properties: { ManagedPolicyName: string } }).Properties.ManagedPolicyName === name,
     ) as PolicyResource;
-  const execution = named(PROJECT_BOOTSTRAP.executionPolicyName).Properties.PolicyDocument
-    .Statement;
+  const execution = [
+    PROJECT_BOOTSTRAP.executionPolicyName,
+    PROJECT_BOOTSTRAP.executionIamPolicyName,
+  ].flatMap((name) => named(name).Properties.PolicyDocument.Statement);
+
+  it('keeps every managed policy under the 6,144-character IAM limit', () => {
+    for (const policy of Object.values(policies) as PolicyResource[]) {
+      const size = JSON.stringify(policy.Properties.PolicyDocument).length;
+      expect(size).toBeLessThan(6144);
+    }
+  });
 
   it('grants no IAM write except to roles that carry the boundary', () => {
     const iamWrites = execution.filter(
@@ -142,6 +151,7 @@ describe('project CDK bootstrap', () => {
       'oidc-provider/*',
       `policy/${PROJECT_BOOTSTRAP.boundaryName}`,
       `policy/${PROJECT_BOOTSTRAP.executionPolicyName}`,
+      `policy/${PROJECT_BOOTSTRAP.executionIamPolicyName}`,
     ]) {
       expect(deny).toContain(target);
     }
