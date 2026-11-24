@@ -185,7 +185,6 @@ export class BootstrapPolicies extends Construct {
             'kms:DescribeKey',
             'kms:ListAliases',
             'ssm:DescribeParameters',
-            'cloudwatch:PutMetricData',
           ],
           resources: ['*'],
         }),
@@ -276,6 +275,7 @@ export class BootstrapPolicies extends Construct {
           effect: iam.Effect.DENY,
           actions: [
             'acm:DeleteCertificate',
+            'acm:UpdateCertificateOptions',
             'acm:AddTagsToCertificate',
             'acm:RemoveTagsFromCertificate',
           ],
