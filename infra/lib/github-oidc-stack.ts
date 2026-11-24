@@ -1,7 +1,8 @@
 import * as cdk from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import type { Construct } from 'constructs';
-import type { EnvName, ProjectConfig, resourceNames } from './config';
+import { BootstrapPolicies } from './bootstrap-policies';
+import { PROJECT_BOOTSTRAP, type EnvName, type ProjectConfig, type resourceNames } from './config';
 
 type EnvResourceNames = ReturnType<typeof resourceNames>;
 
@@ -16,30 +17,35 @@ interface GithubOidcStackProps extends cdk.StackProps {
  *
  * Dev and prod share one AWS account, and IAM allows one OIDC provider per
  * issuer per account, so this one stack holds the provider and both deploy
- * roles. A human deploys it once (scripts/bootstrap/bootstrap-account.sh);
- * after that only the prod pipeline does, so a change to who may deploy ships
- * through `main`.
+ * roles. A person deploys it (scripts/bootstrap/bootstrap-account.sh), after
+ * a change to it merges to `main`; the pipeline never does.
  *
  * Each role trusts only this repository running in the GitHub Environment of
  * the same name, with `aud = sts.amazonaws.com`. No wildcards: a broad `sub`
  * would let any branch, fork or PR workflow assume the role.
  *
  * GitHub is what keeps dev and prod apart: the `prod` Environment accepts
- * deployments from `main` only. Both roles deploy through the account's shared
- * CDK bootstrap roles, whose CloudFormation execution role is an
- * administrator, so IAM alone does not separate the environments. Only
- * separate accounts would.
+ * deployments from `main` only. Both roles deploy through this project's own
+ * CDK bootstrap (`PROJECT_BOOTSTRAP`), never the account's shared one. Its
+ * CloudFormation execution role holds the execution policy made here, not
+ * AdministratorAccess, so a deploy reaches this project's resources only. It
+ * still does not separate dev from prod; only separate accounts would.
+ *
+ * This stack is deployed by a person (scripts/bootstrap/bootstrap-account.sh),
+ * never by the pipeline: the execution policy denies changes to the deploy
+ * roles, the OIDC provider and the two policies.
  *
  * Both subject formats are trusted: `repo:<owner>/<repo>:…` (GitHub's default)
  * and `repo:<owner>@<ownerId>/<repo>@<repoId>:…` (immutable subjects, which
  * survive a rename). Each matches this repository only.
  *
- * Directly, each role can only (a) assume the CDK bootstrap roles, (b) sync its
+ * Directly, each role can only (a) assume this project's CDK bootstrap roles, (b) sync its
  * environment's site bucket, (c) invalidate CloudFront, (d) read its
  * environment's deploy parameters and (e) describe its environment's stacks.
  */
 export class GithubOidcStack extends cdk.Stack {
   readonly deployRoles: Record<EnvName, iam.Role>;
+  readonly bootstrapPolicies: BootstrapPolicies;
 
   constructor(scope: Construct, id: string, props: GithubOidcStackProps) {
     super(scope, id, props);
@@ -53,6 +59,8 @@ export class GithubOidcStack extends cdk.Stack {
         '1c58a3a8518e8759bf075b76b750d4f2df264fcd',
       ],
     });
+
+    this.bootstrapPolicies = new BootstrapPolicies(this, 'BootstrapPolicies');
 
     this.deployRoles = {
       dev: this.deployRole(provider, props.github, 'dev', props.environments.dev),
@@ -86,9 +94,9 @@ export class GithubOidcStack extends cdk.Stack {
 
     role.addToPolicy(
       new iam.PolicyStatement({
-        sid: 'AssumeCdkBootstrapRoles',
+        sid: 'AssumeProjectCdkBootstrapRoles',
         actions: ['sts:AssumeRole'],
-        resources: [`arn:aws:iam::${this.account}:role/cdk-hnb659fds-*`],
+        resources: [`arn:aws:iam::${this.account}:role/cdk-${PROJECT_BOOTSTRAP.qualifier}-*`],
       }),
     );
 
