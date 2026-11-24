@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-# One-time setup so GitHub Actions can deploy: the HiddenGem-Shared-GithubOidc
-# stack (the account's GitHub OIDC provider and the dev + prod deploy roles).
+# Setup so GitHub Actions can deploy, and the only way the deploy path changes:
+#   1. HiddenGem-Shared-GithubOidc: the account's GitHub OIDC provider, the dev +
+#      prod deploy roles, and this project's CDK execution policy and boundary.
+#   2. CDKToolkit-hiddengem: this project's own CDK bootstrap (qualifier hgem),
+#      whose CloudFormation execution role holds that execution policy instead
+#      of AdministratorAccess.
 #
-# Dev and prod share one AWS account. It is already CDK-bootstrapped (the
-# default CDKToolkit stack, which other projects use too); this script checks
-# the version and never changes it. Everything else (hosted zones, email, API,
-# site) is deployed by the pipeline.
+# Dev and prod share one AWS account. Its default CDKToolkit belongs to other
+# projects too; this script checks its version (step 1 deploys through it) and
+# never changes it. Everything else (hosted zones, email, API, site) is
+# deployed by the pipeline, through CDKToolkit-hiddengem. Re-run this after any
+# change to infra/lib/github-oidc-stack.ts or infra/lib/bootstrap-policies.ts.
 #
 # CDK asks you to confirm the IAM changes before deploying; pass --yes to skip
 # that prompt (e.g. no terminal).
@@ -40,6 +45,14 @@ cd "$REPO_ROOT/infra" || exit 1
 echo "==> Deploying $SHARED_OIDC_STACK (profile $PROFILE)"
 pnpm exec cdk deploy "$SHARED_OIDC_STACK" \
   --profile "$PROFILE" --context env=prod --exclusively \
+  --require-approval "$REQUIRE_APPROVAL"
+
+echo "==> Bootstrapping $BOOTSTRAP_STACK (qualifier $BOOTSTRAP_QUALIFIER, execution policy $EXECUTION_POLICY)"
+pnpm exec cdk bootstrap "aws://$ACCOUNT/$REGION" \
+  --profile "$PROFILE" \
+  --qualifier "$BOOTSTRAP_QUALIFIER" \
+  --toolkit-stack-name "$BOOTSTRAP_STACK" \
+  --cloudformation-execution-policies "arn:aws:iam::$ACCOUNT:policy/$EXECUTION_POLICY" \
   --require-approval "$REQUIRE_APPROVAL"
 
 DEV_ROLE=$(stack_output "$SHARED_OIDC_STACK" DevDeployRoleArn)
