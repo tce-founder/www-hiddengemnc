@@ -27,8 +27,8 @@
     "esbuild": "catalog:",
     "eslint": "catalog:",
     "globals": "catalog:",
-    "nx": "23.2.1",
-    "prettier": "3.9.6",
+    "nx": "24.0.6",
+    "prettier": "3.10.1",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:"
   }
