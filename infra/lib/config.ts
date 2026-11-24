@@ -140,7 +140,7 @@ export const SHARED_OIDC_STACK = 'HiddenGem-Shared-GithubOidc';
 
 /**
  * This project's own CDK bootstrap in the shared account. Its CloudFormation
- * execution role runs with `executionPolicyName` (this project's resources
+ * execution role runs with `executionPolicyName` and `executionIamPolicyName` (this project's resources
  * only) instead of AdministratorAccess, and every role the environment stacks
  * create carries `boundaryName`. The account's default `CDKToolkit`
  * (qualifier hnb659fds) belongs to other projects and is never used or changed.
@@ -149,5 +149,6 @@ export const PROJECT_BOOTSTRAP = {
   qualifier: 'hgem',
   toolkitStackName: 'CDKToolkit-hiddengem',
   executionPolicyName: 'hiddengem-cfn-execution',
+  executionIamPolicyName: 'hiddengem-cfn-execution-iam',
   boundaryName: 'hiddengem-workload-boundary',
 } as const;

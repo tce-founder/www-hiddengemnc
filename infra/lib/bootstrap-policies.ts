@@ -7,7 +7,7 @@ import { PROJECT_BOOTSTRAP } from './config';
  * The two managed policies behind this project's own CDK bootstrap
  * (`PROJECT_BOOTSTRAP`):
  *
- * - The execution policy, given to the bootstrap's CloudFormation execution
+ * - The execution policies (two, for the managed-policy size limit), given to the bootstrap's CloudFormation execution
  *   role in place of AdministratorAccess. It reaches this project's resources
  *   by name (`hiddengem-*` and the `HiddenGem-*` names CloudFormation
  *   generates from the stack names), and may create a role only when the role
@@ -21,6 +21,7 @@ import { PROJECT_BOOTSTRAP } from './config';
  */
 export class BootstrapPolicies extends Construct {
   readonly executionPolicy: iam.ManagedPolicy;
+  readonly executionIamPolicy: iam.ManagedPolicy;
   readonly boundary: iam.ManagedPolicy;
 
   constructor(scope: Construct, id: string) {
@@ -286,6 +287,15 @@ export class BootstrapPolicies extends Construct {
             arn('wafv2', 'global/managedruleset/*/*', 'us-east-1'),
           ],
         }),
+      ],
+    });
+
+    // A managed policy holds at most 6,144 characters, so the IAM part is its own policy.
+    this.executionIamPolicy = new iam.ManagedPolicy(this, 'ExecutionIamPolicy', {
+      managedPolicyName: PROJECT_BOOTSTRAP.executionIamPolicyName,
+      description:
+        "hiddengemnc.com - the IAM half of this project's CDK CloudFormation execution role (bounded project roles only)",
+      statements: [
         new iam.PolicyStatement({
           sid: 'CreateBoundedRoles',
           actions: [
@@ -339,6 +349,7 @@ export class BootstrapPolicies extends Construct {
             `arn:aws:iam::${account}:role/hiddengem-*-github-deploy`,
             `arn:aws:iam::${account}:policy/${PROJECT_BOOTSTRAP.boundaryName}`,
             `arn:aws:iam::${account}:policy/${PROJECT_BOOTSTRAP.executionPolicyName}`,
+            `arn:aws:iam::${account}:policy/${PROJECT_BOOTSTRAP.executionIamPolicyName}`,
             `arn:aws:iam::${account}:oidc-provider/*`,
           ],
         }),

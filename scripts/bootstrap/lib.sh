@@ -27,7 +27,7 @@ cfg() { jq -r ".context.hiddengem$1" "$CDK_JSON"; }
   # PROJECT_BOOTSTRAP in infra/lib/config.ts
   BOOTSTRAP_QUALIFIER=hgem
   BOOTSTRAP_STACK=CDKToolkit-hiddengem
-  EXECUTION_POLICY=hiddengem-cfn-execution
+  EXECUTION_POLICIES=hiddengem-cfn-execution,hiddengem-cfn-execution-iam
 }
 
 # Fail unless the AWS profile is signed in to the expected account.
