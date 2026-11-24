@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../lib/app';
-import type { ProjectConfig } from '../lib/config';
+import { PROJECT_BOOTSTRAP, type ProjectConfig } from '../lib/config';
 
 const cdkJson = JSON.parse(readFileSync(path.join(__dirname, '../cdk.json'), 'utf8'));
 const config: ProjectConfig = cdkJson.context.hiddengem;
@@ -75,8 +75,100 @@ describe('GitHub OIDC deploy roles', () => {
     expect(roles).not.toContain('StringLike');
   });
 
-  it('is deployed by the prod pipeline only', () => {
+  it('is only in the prod app', () => {
     expect(synth('dev').oidc).toBeUndefined();
+  });
+
+  it("may assume only this project's CDK bootstrap roles", () => {
+    const resources = Object.values(oidc.findResources('AWS::IAM::Policy')).flatMap((policy) =>
+      (policy as PolicyResource).Properties.PolicyDocument.Statement.filter((s) =>
+        [s.Action].flat().includes('sts:AssumeRole'),
+      ).flatMap((s) => [s.Resource].flat()),
+    );
+    expect(resources.length).toBeGreaterThan(0);
+    expect(JSON.stringify(resources)).toContain(':role/cdk-hgem-*');
+    expect(JSON.stringify(resources)).not.toContain('hnb659fds');
+  });
+});
+
+type Statement = {
+  Effect: string;
+  Action?: string | string[];
+  NotAction?: string | string[];
+  Resource: unknown;
+  Condition?: Record<string, Record<string, unknown>>;
+};
+type PolicyResource = { Properties: { PolicyDocument: { Statement: Statement[] } } };
+
+describe('project CDK bootstrap', () => {
+  const prod = synth('prod');
+  const policies = prod.oidc!.findResources('AWS::IAM::ManagedPolicy');
+  const named = (name: string) =>
+    Object.values(policies).find(
+      (p) =>
+        (p as { Properties: { ManagedPolicyName: string } }).Properties.ManagedPolicyName === name,
+    ) as PolicyResource;
+  const execution = [
+    PROJECT_BOOTSTRAP.executionPolicyName,
+    PROJECT_BOOTSTRAP.executionIamPolicyName,
+  ].flatMap((name) => named(name).Properties.PolicyDocument.Statement);
+
+  it('keeps every managed policy under the 6,144-character IAM limit', () => {
+    for (const policy of Object.values(policies) as PolicyResource[]) {
+      const size = JSON.stringify(policy.Properties.PolicyDocument).length;
+      expect(size).toBeLessThan(6144);
+    }
+  });
+
+  it('grants no IAM write except to roles that carry the boundary', () => {
+    const iamWrites = execution.filter(
+      (s) =>
+        s.Effect === 'Allow' &&
+        [s.Action]
+          .flat()
+          .some((a) => /^iam:(Create|Put|Attach)/.test(a ?? '') || a === 'iam:*' || a === '*'),
+    );
+    expect(iamWrites.length).toBeGreaterThan(0);
+    for (const s of iamWrites) {
+      expect(JSON.stringify(s.Condition?.StringEquals?.['iam:PermissionsBoundary'])).toContain(
+        `policy/${PROJECT_BOOTSTRAP.boundaryName}`,
+      );
+    }
+  });
+
+  it('never allows every action', () => {
+    for (const s of execution.filter((s) => s.Effect === 'Allow')) {
+      expect([s.Action].flat()).not.toContain('*');
+      expect([s.Action].flat()).not.toContain('iam:*');
+      expect([s.Action].flat()).not.toContain('sts:*');
+    }
+  });
+
+  it('denies changes to the deploy roles, the OIDC provider and both policies', () => {
+    const deny = JSON.stringify(execution.filter((s) => s.Effect === 'Deny'));
+    for (const target of [
+      'role/hiddengem-*-github-deploy',
+      'oidc-provider/*',
+      `policy/${PROJECT_BOOTSTRAP.boundaryName}`,
+      `policy/${PROJECT_BOOTSTRAP.executionPolicyName}`,
+      `policy/${PROJECT_BOOTSTRAP.executionIamPolicyName}`,
+    ]) {
+      expect(deny).toContain(target);
+    }
+  });
+
+  it.each(['dev', 'prod'] as const)('%s stacks deploy through it and bound every role', (env) => {
+    const stacks = synth(env);
+    for (const template of [stacks.dns, stacks.email, stacks.backend, stacks.frontend]) {
+      expect(template.toJSON().Parameters.BootstrapVersion.Default).toBe(
+        `/cdk-bootstrap/${PROJECT_BOOTSTRAP.qualifier}/version`,
+      );
+      for (const role of Object.values(template.findResources('AWS::IAM::Role'))) {
+        expect(JSON.stringify((role as { Properties: object }).Properties)).toContain(
+          `policy/${PROJECT_BOOTSTRAP.boundaryName}`,
+        );
+      }
+    }
   });
 });
 

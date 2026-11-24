@@ -15,19 +15,25 @@ other projects. That shapes the setup:
   Each role trusts only this repository running in the GitHub Environment of
   the same name.
 - **GitHub keeps dev and prod apart, not IAM.** The `prod` Environment accepts
-  deployments from `main` only. Both roles deploy through the account's shared
-  CDK bootstrap roles, whose CloudFormation execution role is an
-  administrator, so either can change anything in the account. Organization
-  policies (SCPs) don't apply to a management account either. Separate
-  accounts are the fix if that ever matters.
+  deployments from `main` only. Both roles share one CDK bootstrap, so IAM
+  alone does not separate the environments; separate accounts would.
+- **This project has its own CDK bootstrap**, `CDKToolkit-hiddengem`
+  (qualifier `hgem`). Its CloudFormation execution role holds
+  `hiddengem-cfn-execution`, which reaches only this project's resources
+  (`hiddengem-*` / `HiddenGem-*` names, records under `hiddengemnc.com`,
+  CloudFront distributions tagged `Project=HiddenGem`), and may create a role
+  only when it carries the `hiddengem-workload-boundary` permissions boundary.
+  The deploy roles may assume only `cdk-hgem-*` roles. Both policies live in
+  `infra/lib/bootstrap-policies.ts`.
 - **Everything is prefixed `hiddengem`** and includes the environment, so
   nothing collides with the other projects.
-- The account's existing CDK bootstrap (`CDKToolkit`) is used as it is; the
+- The account's default CDK bootstrap (`CDKToolkit`) belongs to other projects;
+  only the hand-deployed `HiddenGem-Shared-GithubOidc` stack uses it, and the
   scripts never change it.
 
 | Stack                         | What it holds                                                                            |
 | ----------------------------- | ---------------------------------------------------------------------------------------- |
-| `HiddenGem-Shared-GithubOidc` | GitHub OIDC provider and both deploy roles. Deployed by the prod pipeline only.          |
+| `HiddenGem-Shared-GithubOidc` | OIDC provider, both deploy roles, the bootstrap policies. Deployed by a person only.     |
 | `HiddenGem-<Env>-Dns`         | The environment's zone (`d.hiddengemnc.com` / `mail.hiddengemnc.com`) and its delegation |
 | `HiddenGem-<Env>-Email`       | SES sending identity with DKIM, SPF (MAIL FROM) and DMARC records                        |
 | `HiddenGem-<Env>-Backend`     | Contact API: Lambda, API Gateway, DynamoDB, origin secret                                |
@@ -94,9 +100,12 @@ GA4 properties are in the "Hidden Gem NC" Analytics account: prod
 ## First-time setup
 
 1. **Sign in:** `aws sso login --profile ben-tce-root`
-2. **Deploy roles:** `scripts/bootstrap/bootstrap-account.sh` checks the
-   account's CDK bootstrap, then deploys `HiddenGem-Shared-GithubOidc`. CDK
-   shows the IAM changes and asks before applying them.
+2. **Deploy roles and bootstrap:** `scripts/bootstrap/bootstrap-account.sh`
+   checks the account's default CDK bootstrap, deploys
+   `HiddenGem-Shared-GithubOidc`, then bootstraps `CDKToolkit-hiddengem`. CDK
+   shows the IAM changes and asks before applying them. Re-run it after any
+   change to the OIDC stack or the bootstrap policies: the pipeline never
+   deploys them.
 3. **GitHub:** `scripts/bootstrap/configure-github.sh` previews, then
    `scripts/bootstrap/configure-github.sh --apply` creates `develop`, the `dev`
    and `prod` Environments with their branch rules, the role variables and
