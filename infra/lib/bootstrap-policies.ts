@@ -50,6 +50,12 @@ export class BootstrapPolicies extends Construct {
       `arn:aws:iam::${account}:role/hiddengem-*`,
     ];
     const zoneNames = ['hiddengemnc.com', '*.hiddengemnc.com'];
+    const mailIdentities = [
+      arn('ses', 'identity/hiddengemnc.com'),
+      arn('ses', 'identity/*.hiddengemnc.com'),
+    ];
+    // Resources with no name to scope by may be changed only while they carry this project's tag.
+    const notOurs = { StringNotEquals: { 'aws:ResourceTag/Project': 'HiddenGem' } };
 
     this.boundary = new iam.ManagedPolicy(this, 'WorkloadBoundary', {
       managedPolicyName: PROJECT_BOOTSTRAP.boundaryName,
@@ -73,7 +79,7 @@ export class BootstrapPolicies extends Construct {
         new iam.PolicyStatement({
           sid: 'SendMail',
           actions: ['ses:SendEmail', 'ses:SendRawEmail'],
-          resources: [arn('ses', 'identity/*'), arn('ses', 'configuration-set/hiddengem-*')],
+          resources: [...mailIdentities, arn('ses', 'configuration-set/hiddengem-*')],
         }),
         new iam.PolicyStatement({
           sid: 'ReadOwnConfig',
@@ -175,6 +181,25 @@ export class BootstrapPolicies extends Construct {
           ],
           resources: [`arn:aws:apigateway:${region}::/*`],
         }),
+        new iam.PolicyStatement({
+          sid: 'OtherProjectsApis',
+          effect: iam.Effect.DENY,
+          actions: ['apigateway:POST', 'apigateway:PUT', 'apigateway:PATCH', 'apigateway:DELETE'],
+          resources: [
+            `arn:aws:apigateway:${region}::/restapis/*`,
+            `arn:aws:apigateway:${region}::/tags/*`,
+          ],
+          conditions: notOurs,
+        }),
+        new iam.PolicyStatement({
+          sid: 'NotTheApiAccount',
+          effect: iam.Effect.DENY,
+          actions: ['apigateway:PATCH', 'apigateway:PUT', 'apigateway:POST', 'apigateway:DELETE'],
+          resources: [
+            `arn:aws:apigateway:${region}::/account`,
+            `arn:aws:apigateway:${region}::/domainnames*`,
+          ],
+        }),
         // CloudFront has no names to scope by; an existing distribution must carry this project's tag.
         new iam.PolicyStatement({ sid: 'Cdn', actions: ['cloudfront:*'], resources: ['*'] }),
         new iam.PolicyStatement({
@@ -185,9 +210,21 @@ export class BootstrapPolicies extends Construct {
             'cloudfront:DeleteDistribution',
             'cloudfront:AssociateAlias',
             'cloudfront:CreateInvalidation',
+            'cloudfront:TagResource',
+            'cloudfront:UntagResource',
           ],
           resources: [`arn:aws:cloudfront::${account}:distribution/*`],
-          conditions: { StringNotEquals: { 'aws:ResourceTag/Project': 'HiddenGem' } },
+          conditions: notOurs,
+        }),
+        new iam.PolicyStatement({
+          sid: 'OtherProjectsFunctions',
+          effect: iam.Effect.DENY,
+          actions: [
+            'cloudfront:UpdateFunction',
+            'cloudfront:PublishFunction',
+            'cloudfront:DeleteFunction',
+          ],
+          notResources: [`arn:aws:cloudfront::${account}:function/hiddengem-*`],
         }),
         new iam.PolicyStatement({
           sid: 'Certificates',
@@ -200,6 +237,17 @@ export class BootstrapPolicies extends Construct {
             'acm:ListTagsForCertificate',
           ],
           resources: ['*'],
+        }),
+        new iam.PolicyStatement({
+          sid: 'OtherProjectsCertificates',
+          effect: iam.Effect.DENY,
+          actions: [
+            'acm:DeleteCertificate',
+            'acm:AddTagsToCertificate',
+            'acm:RemoveTagsFromCertificate',
+          ],
+          resources: [arn('acm', 'certificate/*', 'us-east-1'), arn('acm', 'certificate/*')],
+          conditions: notOurs,
         }),
         new iam.PolicyStatement({
           sid: 'Zones',
@@ -228,11 +276,7 @@ export class BootstrapPolicies extends Construct {
         new iam.PolicyStatement({
           sid: 'Mail',
           actions: ['ses:*'],
-          resources: [
-            arn('ses', 'identity/hiddengemnc.com'),
-            arn('ses', 'identity/*.hiddengemnc.com'),
-            arn('ses', 'configuration-set/hiddengem-*'),
-          ],
+          resources: [...mailIdentities, arn('ses', 'configuration-set/hiddengem-*')],
         }),
         new iam.PolicyStatement({
           sid: 'Firewall',
@@ -267,11 +311,17 @@ export class BootstrapPolicies extends Construct {
             'iam:UntagRole',
             'iam:UpdateRole',
             'iam:UpdateRoleDescription',
-            'iam:UpdateAssumeRolePolicy',
             'iam:DeleteRole',
-            'iam:PassRole',
           ],
           resources: projectRoles,
+        }),
+        // Roles here are only ever handed to Lambda. Changing a role's trust is
+        // not allowed at all: replace the role instead.
+        new iam.PolicyStatement({
+          sid: 'PassProjectRolesToLambda',
+          actions: ['iam:PassRole'],
+          resources: projectRoles,
+          conditions: { StringEquals: { 'iam:PassedToService': 'lambda.amazonaws.com' } },
         }),
         // Never the deploy roles, the OIDC provider, these policies, or a boundary removal.
         new iam.PolicyStatement({
