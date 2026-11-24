@@ -159,8 +159,12 @@ jobs:
         working-directory: infra
         env:
           RECAPTCHA_SECRET_KEY: ${{ secrets.RECAPTCHA_SECRET_KEY }}
+        # The environment's own stacks only. HiddenGem-Shared-GithubOidc holds
+        # the deploy roles and the bootstrap policies, so a person deploys it
+        # (scripts/bootstrap/bootstrap-account.sh) and the pipeline never does.
         run: >
-          pnpm exec cdk deploy --all
+          pnpm exec cdk deploy "HiddenGem-${DEPLOY_ENV^}-*"
+          --exclusively
           --require-approval never
           --context env="$DEPLOY_ENV"
           --context deploy=true

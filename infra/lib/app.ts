@@ -1,7 +1,8 @@
 import * as cdk from 'aws-cdk-lib';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { randomBytes } from 'node:crypto';
 import { BackendStack } from './backend-stack';
-import { loadConfig, resourceNames, SHARED_OIDC_STACK } from './config';
+import { loadConfig, PROJECT_BOOTSTRAP, resourceNames, SHARED_OIDC_STACK } from './config';
 import { DnsStack } from './dns-stack';
 import { EmailStack } from './email-stack';
 import { FrontendStack } from './frontend-stack';
@@ -18,7 +19,7 @@ export interface DeployInputs {
  * bin/app.ts and the tests.
  *
  * Stacks (dependencies resolve automatically from the references below):
- *   HiddenGem-Shared-GithubOidc  OIDC provider + both deploy roles. In the prod app only.
+ *   HiddenGem-Shared-GithubOidc  OIDC provider, both deploy roles, bootstrap policies. Prod app only.
  *   <Prefix>-Dns                 This environment's hosted zone, delegated from hiddengemnc.com.
  *   <Prefix>-Email               SES sending identity + DKIM/SPF/DMARC records.
  *   <Prefix>-Backend             Contact API: Lambda, API Gateway, DynamoDB, origin secret.
@@ -31,8 +32,7 @@ export function buildApp(app: cdk.App, inputs: DeployInputs = {}) {
   const siteUrl = `https://${env.site.domain}`;
 
   // Both environments' deploy roles live in one stack (one OIDC provider per
-  // account). Only the prod app has it, so a change to who may deploy ships
-  // through main.
+  // account). Only the prod app has it, and only a person deploys it.
   const oidc =
     envName === 'prod'
       ? new GithubOidcStack(app, SHARED_OIDC_STACK, {
@@ -49,6 +49,7 @@ export function buildApp(app: cdk.App, inputs: DeployInputs = {}) {
 
   const dns = new DnsStack(app, `${names.stackPrefix}-Dns`, {
     env: awsEnv,
+    synthesizer: projectSynthesizer(),
     description: `hiddengemnc.com (${envName}) - hosted zone ${env.hostedZone}`,
     envName,
     zoneName: env.hostedZone,
@@ -59,6 +60,7 @@ export function buildApp(app: cdk.App, inputs: DeployInputs = {}) {
   const sesFromAddress = `noreply@${env.emailDomain}`;
   const email = new EmailStack(app, `${names.stackPrefix}-Email`, {
     env: awsEnv,
+    synthesizer: projectSynthesizer(),
     description: `hiddengemnc.com (${envName}) - SES identity ${env.emailDomain}`,
     envName,
     hostedZone: dns.hostedZone,
@@ -66,6 +68,7 @@ export function buildApp(app: cdk.App, inputs: DeployInputs = {}) {
 
   const backend = new BackendStack(app, `${names.stackPrefix}-Backend`, {
     env: awsEnv,
+    synthesizer: projectSynthesizer(),
     description: `hiddengemnc.com (${envName}) - contact API`,
     envName,
     names,
@@ -79,6 +82,7 @@ export function buildApp(app: cdk.App, inputs: DeployInputs = {}) {
 
   const frontend = new FrontendStack(app, `${names.stackPrefix}-Frontend`, {
     env: awsEnv,
+    synthesizer: projectSynthesizer(),
     description: `hiddengemnc.com (${envName}) - website`,
     envName,
     names,
@@ -89,6 +93,20 @@ export function buildApp(app: cdk.App, inputs: DeployInputs = {}) {
     basicAuth: env.basicAuth ? resolveBasicAuth(app, inputs) : undefined,
   });
   frontend.addStackDependency(backend); // the origin secret is read by name, not by reference
+
+  // The environment stacks deploy through this project's own bootstrap, and
+  // every role they create carries its boundary. The OIDC stack keeps the
+  // default synthesizer: a person deploys it, and it holds what the scoped
+  // execution role may not touch.
+  for (const stack of [dns, email, backend, frontend]) {
+    iam.PermissionsBoundary.of(stack).apply(
+      iam.ManagedPolicy.fromManagedPolicyName(
+        stack,
+        'WorkloadBoundary',
+        PROJECT_BOOTSTRAP.boundaryName,
+      ),
+    );
+  }
 
   cdk.Tags.of(app).add('Project', 'HiddenGem');
   cdk.Tags.of(app).add('Environment', envName);
@@ -113,4 +131,9 @@ function resolveBasicAuth(app: cdk.App, inputs: DeployInputs) {
     username: inputs.basicAuthUsername || 'hiddengem',
     password: inputs.basicAuthPassword || randomBytes(24).toString('base64url'),
   };
+}
+
+/** Deploys through this project's own CDK bootstrap, not the account's shared one. */
+function projectSynthesizer() {
+  return new cdk.DefaultStackSynthesizer({ qualifier: PROJECT_BOOTSTRAP.qualifier });
 }

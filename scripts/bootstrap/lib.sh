@@ -24,6 +24,10 @@ cfg() { jq -r ".context.hiddengem$1" "$CDK_JSON"; }
   REGION=$(cfg .environments.dev.region)
   PROFILE=$(cfg .environments.dev.profile)
   SHARED_OIDC_STACK=HiddenGem-Shared-GithubOidc # SHARED_OIDC_STACK in infra/lib/config.ts
+  # PROJECT_BOOTSTRAP in infra/lib/config.ts
+  BOOTSTRAP_QUALIFIER=hgem
+  BOOTSTRAP_STACK=CDKToolkit-hiddengem
+  EXECUTION_POLICY=hiddengem-cfn-execution
 }
 
 # Fail unless the AWS profile is signed in to the expected account.
