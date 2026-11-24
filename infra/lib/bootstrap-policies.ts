@@ -159,7 +159,13 @@ export class BootstrapPolicies extends Construct {
         new iam.PolicyStatement({
           sid: 'BootstrapVersion',
           actions: ['ssm:GetParameter', 'ssm:GetParameters'],
-          resources: [arn('ssm', `parameter/cdk-bootstrap/${PROJECT_BOOTSTRAP.qualifier}/version`)],
+          // Stacks first deployed through the account's default bootstrap keep its
+          // parameter name: CDK reuses a stack's previous parameter values. Both
+          // hold only a version number.
+          resources: [
+            arn('ssm', `parameter/cdk-bootstrap/${PROJECT_BOOTSTRAP.qualifier}/version`),
+            arn('ssm', 'parameter/cdk-bootstrap/hnb659fds/version'),
+          ],
         }),
         new iam.PolicyStatement({
           sid: 'LogGroups',
