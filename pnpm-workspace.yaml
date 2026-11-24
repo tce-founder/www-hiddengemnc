@@ -7,7 +7,7 @@ packages:
 # `"typescript": "catalog:"` in a package.json instead of repeating a range.
 catalog:
   '@eslint/js': ^10.0.1
-  '@types/node': ^24.13.4
+  '@types/node': ^26.6.2
   esbuild: ^0.28.2
   eslint: ^10.10.0
   globals: ^17.12.0
